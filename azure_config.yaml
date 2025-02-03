@@ -1,0 +1,16 @@
+config:
+  azureCloudConfig:
+    cloud: "AzurePublicCloud"
+    tenantId: "550cfcda-8a2d-452c-ba71-d6bc6bf5bb31"
+    subscriptionId: "133d5755-4074-4d6e-ad38-eb2a6ad12903"
+    useManagedIdentityExtension: true
+    userAssignedIdentityID: "e9838347-da71-4b3a-967d-4036ef95df64"
+    userAgent: "kube-egress-gateway-controller"
+    resourceGroup: "MC_egress-demo_egress-demo_australiasoutheast"
+    location: "australiasoutheast"
+    gatewayLoadBalancerName: "kubeegressgateway-ilb"
+    loadBalancerResourceGroup: "MC_egress-demo_egress-demo_australiasoutheast"
+    vnetName: "egress-demo-vnet"
+    vnetResourceGroup: "egress-demo"
+    subnetName: "egress"
+    vmssName: "aks-egressgw-13028973-vmss"

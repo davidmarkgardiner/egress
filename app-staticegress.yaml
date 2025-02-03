@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: app2
+  namespace: demo
+  labels:
+    app: app2
+  annotations:
+    egressgateway.kubernetes.azure.com/gateway-name: myegressgateway
+spec:
+  containers:
+  - name: app
+    image: curlimages/curl
+    command: ["sleep", "infinity"]

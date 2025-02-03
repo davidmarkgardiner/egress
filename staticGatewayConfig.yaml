@@ -1,0 +1,15 @@
+apiVersion: egressgateway.kubernetes.azure.com/v1alpha1
+kind: StaticGatewayConfiguration
+metadata:
+  name: myegressgateway
+  namespace: demo
+spec:
+  gatewayVmssProfile:
+    vmssName: "aks-egressgw-13028973-vmss"
+    vmssResourceGroup: "MC_egress-demo_egress-demo_australiasoutheast"
+  provisionPublicIps: false
+  defaultRoute: staticEgressGateway
+  excludeCidrs:
+    - "168.63.129.16/32"  # Exclude Azure DNS
+    - "10.224.0.0/16"  # Exclude AKS default subnet
+    - "192.168.0.0/16"  # Exclude pod CIDR
