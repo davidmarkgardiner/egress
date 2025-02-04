@@ -183,6 +183,11 @@ EGRESS_VMSS_ID="/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$NODE_RESOURCE_GR
 az role assignment create --role "Network Contributor" --assignee $IDENTITY_CLIENT_ID --scope $RG_ID
 az role assignment create --role "Network Contributor" --assignee $IDENTITY_CLIENT_ID --scope $NODE_RG_ID
 az role assignment create --role "Virtual Machine Contributor" --assignee $IDENTITY_CLIENT_ID --scope $EGRESS_VMSS_ID
+
+# Assign the user-managed identity to the egress gateway VMSS
+# This is required for the kube-egress-gateway controller to use the identity to assign egress IPs
+SYSTEM_VMSS_NAME=$(az vmss list -g $NODE_RESOURCE_GROUP --query [].name -o tsv | grep -v $EGRESS_NODE_POOL)
+az vmss identity assign --identities $IDENTITY_RESOURCE_ID -g $NODE_RESOURCE_GROUP -n $SYSTEM_VMSS_NAME
 ```
 
 ### 4. Create Target Workload
