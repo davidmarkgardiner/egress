@@ -130,28 +130,29 @@ IDENTITY_CLIENT_SECRET=$(echo $SP_CREDENTIAL | jq -r .password)
 TENANT_ID=$(echo $SP_CREDENTIAL | jq -r .tenant)
 ```
 
-# Understanding Role Assignments
-# The following role assignments are required for the egress gateway controller to function properly:
-#
-# 1. Network Contributor on cluster resource group ($RG_ID):
-#    - Allows managing and configuring network settings in the AKS VNET
-#    - Enables creation and management of load balancers
-#    - Permits configuration of IP configurations and network interfaces
-#    - Allows management of subnet configurations
-#
-# 2. Network Contributor on node resource group ($NODE_RG_ID):
-#    - Required for managing networking resources in the AKS node resource group
-#    - Enables configuration of internal load balancers
-#    - Permits management of network settings for egress gateway nodes
-#
-# 3. Virtual Machine Contributor on egress VMSS ($EGRESS_VMSS_ID):
-#    - Allows management of the Virtual Machine Scale Set running egress gateway nodes
-#    - Enables updates to network configurations on VMSS instances
-#    - Permits management of IP configurations on VMSS network interfaces
-#
-# These permissions follow the principle of least privilege by scoping the permissions
-# only to the specific resources needed for the egress gateway functionality.
+#### Understanding Role Assignments
 
+The following role assignments are required for the egress gateway controller to function properly:
+
+1. **Network Contributor** on cluster resource group (`$RG_ID`):
+   - Allows managing and configuring network settings in the AKS VNET
+   - Enables creation and management of load balancers
+   - Permits configuration of IP configurations and network interfaces
+   - Allows management of subnet configurations
+
+2. **Network Contributor** on node resource group (`$NODE_RG_ID`):
+   - Required for managing networking resources in the AKS node resource group
+   - Enables configuration of internal load balancers
+   - Permits management of network settings for egress gateway nodes
+
+3. **Virtual Machine Contributor** on egress VMSS (`$EGRESS_VMSS_ID`):
+   - Allows management of the Virtual Machine Scale Set running egress gateway nodes
+   - Enables updates to network configurations on VMSS instances
+   - Permits management of IP configurations on VMSS network interfaces
+
+These permissions follow the principle of least privilege by scoping the permissions only to the specific resources needed for the egress gateway functionality.
+
+```bash
 # Get subscription and resource group details
 SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 NODE_RESOURCE_GROUP="$(az aks show -n $CLUSTER -g $RG_NAME --query nodeResourceGroup -o tsv)"
