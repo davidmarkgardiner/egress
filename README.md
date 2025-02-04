@@ -103,7 +103,11 @@ az aks nodepool add \
     --vnet-subnet-id $EGRESS_SUBNET_ID
 ```
 
-### 3. Configure User-Managed Identity
+### 3. Configure Identity
+
+You can use either a User-Assigned Managed Identity (UAMI) or a Service Principal (SPN) for authentication. Choose one of the following options:
+
+#### Option A: User-Assigned Managed Identity (Recommended)
 
 ```bash
 # Create managed identity
@@ -113,13 +117,47 @@ az identity create -g $RG_NAME -n $EGRESS_IDENTITY_NAME
 # Get identity details
 IDENTITY_CLIENT_ID=$(az identity show -g $RG_NAME -n $EGRESS_IDENTITY_NAME -o tsv --query "clientId")
 IDENTITY_RESOURCE_ID=$(az identity show -g $RG_NAME -n $EGRESS_IDENTITY_NAME -o tsv --query "id")
+```
+
+#### Option B: Service Principal
+
+```bash
+# Create service principal and capture credentials
+SP_NAME="staticegress-sp"
+SP_CREDENTIAL=$(az ad sp create-for-rbac --name $SP_NAME --skip-assignment)
+IDENTITY_CLIENT_ID=$(echo $SP_CREDENTIAL | jq -r .appId)
+IDENTITY_CLIENT_SECRET=$(echo $SP_CREDENTIAL | jq -r .password)
+TENANT_ID=$(echo $SP_CREDENTIAL | jq -r .tenant)
+```
+
+# Understanding Role Assignments
+# The following role assignments are required for the egress gateway controller to function properly:
+#
+# 1. Network Contributor on cluster resource group ($RG_ID):
+#    - Allows managing and configuring network settings in the AKS VNET
+#    - Enables creation and management of load balancers
+#    - Permits configuration of IP configurations and network interfaces
+#    - Allows management of subnet configurations
+#
+# 2. Network Contributor on node resource group ($NODE_RG_ID):
+#    - Required for managing networking resources in the AKS node resource group
+#    - Enables configuration of internal load balancers
+#    - Permits management of network settings for egress gateway nodes
+#
+# 3. Virtual Machine Contributor on egress VMSS ($EGRESS_VMSS_ID):
+#    - Allows management of the Virtual Machine Scale Set running egress gateway nodes
+#    - Enables updates to network configurations on VMSS instances
+#    - Permits management of IP configurations on VMSS network interfaces
+#
+# These permissions follow the principle of least privilege by scoping the permissions
+# only to the specific resources needed for the egress gateway functionality.
 
 # Get subscription and resource group details
 SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 NODE_RESOURCE_GROUP="$(az aks show -n $CLUSTER -g $RG_NAME --query nodeResourceGroup -o tsv)"
 EGRESS_VMSS_NAME=$(az vmss list -g $NODE_RESOURCE_GROUP --query [].name -o tsv | grep $EGRESS_NODE_POOL)
 
-# Assign required roles
+# Assign required roles (same for both UAMI and SPN)
 RG_ID="/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RG_NAME"
 NODE_RG_ID="/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$NODE_RESOURCE_GROUP"
 EGRESS_VMSS_ID="/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$NODE_RESOURCE_GROUP/providers/Microsoft.Compute/virtualMachineScaleSets/$EGRESS_VMSS_NAME"
@@ -132,15 +170,36 @@ az role assignment create --role "Virtual Machine Contributor" --assignee $IDENT
 ### 4. Install Egress Gateway Controller
 
 ```bash
-# Create azure_config.yaml
+# Create azure_config.yaml based on your identity choice
+
+# For User-Assigned Managed Identity:
+cat << EOF > azure_config.yaml
+config:
+  azureCloudConfig:
+    cloud: "AzurePublicCloud"
+    tenantId: "$(az account show --query tenantId -o tsv)"
+    subscriptionId: "$SUBSCRIPTION_ID"
+    useManagedIdentityExtension: true
+    userAssignedIdentityID: "$IDENTITY_CLIENT_ID"
+    userAgent: "kube-egress-gateway-controller"
+    resourceGroup: "$NODE_RESOURCE_GROUP"
+    location: "$LOCATION"
+    gatewayLoadBalancerName: "kubeegressgateway-ilb"
+    loadBalancerResourceGroup: "$NODE_RESOURCE_GROUP"
+    vnetName: "$VNET_NAME"
+    vnetResourceGroup: "$RG_NAME"
+    subnetName: "$EGRESS_SUBNET_NAME"
+EOF
+
+# For Service Principal:
 cat << EOF > azure_config.yaml
 config:
   azureCloudConfig:
     cloud: "AzurePublicCloud"
     tenantId: "$TENANT_ID"
     subscriptionId: "$SUBSCRIPTION_ID"
-    useManagedIdentityExtension: true
-    userAssignedIdentityID: "$IDENTITY_CLIENT_ID"
+    aadClientId: "$IDENTITY_CLIENT_ID"
+    aadClientSecret: "$IDENTITY_CLIENT_SECRET"
     userAgent: "kube-egress-gateway-controller"
     resourceGroup: "$NODE_RESOURCE_GROUP"
     location: "$LOCATION"
