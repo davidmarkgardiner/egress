@@ -13,9 +13,13 @@ This repository demonstrates how to set up static egress IPs for AKS workloads u
 
 The setup consists of:
 - An AKS cluster with a dedicated VMSS node pool for the egress gateway
-- A target network (another VNET) with a container instance
-- VNET peering between AKS and target networks
-- Static egress gateway configuration for predictable source IPs
+- A target workload (nginx pod) in a separate namespace
+- Static egress gateway configuration for predictable source IPs when accessing workloads in other namespaces
+
+This demo shows how to:
+- Configure static egress IPs for specific pod-to-pod communications
+- Control egress traffic patterns within the cluster
+- Maintain predictable source IPs for internal communication
 
 ## Quick Start
 
