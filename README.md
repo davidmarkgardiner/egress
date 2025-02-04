@@ -121,13 +121,26 @@ IDENTITY_RESOURCE_ID=$(az identity show -g $RG_NAME -n $EGRESS_IDENTITY_NAME -o 
 
 #### Option B: Service Principal
 
+You can either create a new Service Principal or use an existing one:
+
 ```bash
-# Create service principal and capture credentials
+# Option B.1: Create new service principal
 SP_NAME="staticegress-sp"
 SP_CREDENTIAL=$(az ad sp create-for-rbac --name $SP_NAME --skip-assignment)
 IDENTITY_CLIENT_ID=$(echo $SP_CREDENTIAL | jq -r .appId)
 IDENTITY_CLIENT_SECRET=$(echo $SP_CREDENTIAL | jq -r .password)
 TENANT_ID=$(echo $SP_CREDENTIAL | jq -r .tenant)
+```
+
+```bash
+# Option B.2: Use existing service principal
+SP_NAME="your-existing-sp-name"
+# Get client ID (application ID) of the existing service principal
+IDENTITY_CLIENT_ID=$(az ad sp list --display-name $SP_NAME --query '[0].appId' -o tsv)
+# Reset credentials if needed
+SP_CREDENTIAL=$(az ad sp credential reset --id $IDENTITY_CLIENT_ID)
+IDENTITY_CLIENT_SECRET=$(echo $SP_CREDENTIAL | jq -r .password)
+TENANT_ID=$(az account show --query tenantId -o tsv)
 ```
 
 #### Understanding Role Assignments
