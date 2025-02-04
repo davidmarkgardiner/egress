@@ -181,36 +181,44 @@ az role assignment create --role "Network Contributor" --assignee $IDENTITY_CLIE
 az role assignment create --role "Virtual Machine Contributor" --assignee $IDENTITY_CLIENT_ID --scope $EGRESS_VMSS_ID
 ```
 
-### 4. Create Target Network and Configure VNET Peering
+### 4. Create Target Workload
 
-The target network represents the destination network (like an on-premises network) that pods will access using static egress IPs. VNET peering must be configured before testing to enable network connectivity.
+Instead of creating a separate container instance, we'll create a simple nginx pod in a different namespace to simulate the target workload. This approach is simpler and demonstrates the same egress functionality.
 
 ```bash
-# Create target VNET
-TARGET_VNET_NAME="my-target-vnet"
-az network vnet create --resource-group $RG_NAME --name $TARGET_VNET_NAME \
-    --location $LOCATION --address-prefix 10.0.0.0/16
+# Create target namespace
+kubectl create namespace target-workload
 
-# Create container instance in target VNET (simulating a target workload)
-az container create \
-  --name appcontainer \
-  --resource-group $RG_NAME \
-  --image mcr.microsoft.com/azuredocs/aci-helloworld \
-  --vnet $TARGET_VNET_NAME \
-  --vnet-address-prefix 10.0.0.0/16 \
-  --subnet apps \
-  --subnet-address-prefix 10.0.3.0/24
+# Deploy nginx pod as target workload
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: target-app
+  namespace: target-workload
+spec:
+  containers:
+  - name: nginx
+    image: nginx
+    ports:
+    - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: target-app-svc
+  namespace: target-workload
+spec:
+  selector:
+    app: target-app
+  ports:
+  - port: 80
+    targetPort: 80
+  type: ClusterIP
+EOF
 
-TARGET_IP="$(az container show -n appcontainer -g $RG_NAME --query ipAddress.ip -o tsv)"
-
-# Setup VNET peering (required for network connectivity)
-az network vnet peering create --name staticegress-to-target \
-    --resource-group $RG_NAME --vnet-name $VNET_NAME \
-    --remote-vnet $TARGET_VNET_NAME --allow-vnet-access
-
-az network vnet peering create --name target-to-staticegress \
-    --resource-group $RG_NAME --vnet-name $TARGET_VNET_NAME \
-    --remote-vnet $VNET_NAME --allow-vnet-access
+# Get the pod IP to use as target
+TARGET_IP=$(kubectl get pod target-app -n target-workload -o jsonpath='{.status.podIP}')
 ```
 
 ### 5. Install Egress Gateway Controller
@@ -279,17 +287,21 @@ metadata:
 spec:
   defaultRoute: staticEgressGateway
   routeCidrs:
-  - 10.0.0.0/16  # Target subnet CIDR
+  - $POD_CIDR  # Pod CIDR to capture traffic to other pods
   excludeCidrs:
-  - 168.63.129.16/32
-  - 10.224.0.0/16
-  - 192.168.0.0/16
+  - 168.63.129.16/32  # Azure DNS
+  - 10.224.0.0/16     # AKS VNET
   gatewayVmssProfile:
     vmssName: $EGRESS_VMSS_NAME
     vmssResourceGroup: $NODE_RESOURCE_GROUP
   provisionPublicIps: false
 EOF
 ```
+
+This configuration ensures that:
+- Traffic to pods in other namespaces goes through the egress gateway
+- Azure DNS (168.63.129.16/32) is excluded to maintain cluster functionality
+- AKS VNET traffic is excluded to maintain direct pod-to-pod communication within the same VNET
 
 ### 7. Deploy and Test
 
